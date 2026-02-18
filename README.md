@@ -39,8 +39,6 @@ This guide walks through setting up a secure, private Matrix Synapse homeserver 
 
 ---
 
---- WIP ---
-
 #### Phase 1: Create a Free Subdomain with Dynu (5 minutes)
 
 1. Go to https://www.dynu.com and sign up for a free account (email and password only, no card needed).  
