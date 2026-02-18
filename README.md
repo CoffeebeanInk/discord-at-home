@@ -37,7 +37,9 @@ This guide walks through setting up a secure, private Matrix Synapse homeserver 
 - Ability to run sudo commands
 - ~90–120 minutes of time for initial setup
 
----WIP---
+---
+
+--- WIP ---
 
 #### Step 1: Install Required Packages
 Update your system and install core dependencies:
