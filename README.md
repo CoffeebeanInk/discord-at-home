@@ -39,7 +39,7 @@ This guide walks through setting up a secure, private Matrix Synapse homeserver 
 - Ability to run sudo commands
 - ~90–120 minutes of time for initial setup
 
-## Suggestions
+## Recommendations
 - Prefer [Commet](https://commet.chat/) (desktop & mobile) or [Cinny](https://cinny.in/) (desktop) to have a user friendly Discord-like UI.
 - Keep registrations off, only your admin account registered in your homeserver.
 - Make an alt account on another homserver and join every room of your Space.
