@@ -8,7 +8,9 @@ This guide walks through setting up a secure, private Matrix Synapse homeserver 
 5) **Why a personal comuter insted of a VPS?** It's free, uses your existing hardware, and is resilient through federation.
 6) **What happens when the PC is off?** Your own account appears offline, cannot send/receive messages, read new messages, invite new people or do anything until the PC is back on. Everyone else who joined from other homeservers can keep chatting normally in your Space and rooms even for days or weeks while your PC is off. If no one else from another homeserver has ever joined a particular room that room becomes unreachable until you come back online.
 7) **What happens when the PC is back online?** Your account syncs up: you see all messages sent while you were offline. The process usually takes seconds to a few minutes, depending on how long you were offline and how active the rooms were.
-8) **How many resources will this use?**
+8) **How many people can I have in my spcae?** 200–600 total federated users (50–150 concurrent).
+9) **What happens if my Space goes beyond the recomended users?** You will start to experience occasional catch-up spikes, longer syncs and more RAM used, but your server wont crash or lose data.
+10) **How many resources will this use?**
    
 | Scenario                              | RAM              | CPU              | Disk (long-term) | Network          | Power (extra) | Impact on Your PC                  |
 |---------------------------------------|------------------|------------------|------------------|------------------|---------------|------------------------------------|
@@ -37,14 +39,14 @@ This guide walks through setting up a secure, private Matrix Synapse homeserver 
 - Ability to run sudo commands
 - ~90–120 minutes of time for initial setup
 
-## Recommendations
+## Suggestions
 - Prefer [Commet](https://commet.chat/) (desktop & mobile) or [Cinny](https://cinny.in/) (desktop) to have a user friendly Discord-like UI.
-- Keep registrations off, only your admin account registred in your homeserver.
-- Make an alt account on other homserver and join every room of your Space.
+- Keep registrations off, only your admin account registered in your homeserver.
+- Make an alt account on another homserver and join every room of your Space.
 - Invite eveyone to join from other homeservers.
 - Don't give PL 50+ (mod) to anyone on another homeserver unless you 100% trust the owner of that homeserver.
 - To keep storage low use embeds instead of uploading raw media files (Ex. [catbox.moe](https://catbox.moe))
-- Keep max media upload size on 10Mb or lower.
+- Keep max media upload size to 10Mb or lower.
 - Encourage users to also use embeds.
 
 ---
