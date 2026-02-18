@@ -6,7 +6,7 @@ This guide walks through setting up a secure, private Matrix Synapse homeserver 
 2) **Why self-host?** It gives you full control over your data, privacy, moderation, and customization without relying on third-party providers and dangers like homeserver takeover are low if you don't delegate PL 50+ to untrusted instances.
 3) **Why not use an existing homeserver?** As [this](https://tatsumoto.neocities.org/blog/i-stopped-using-matrix) article sates, home server administrators can impersonate a user or hijack the room/space.
 5) **Why a personal comuter insted of a VPS?** It's free, uses your existing hardware, and is resilient through federation.
-6) **What happens when the PC is off?** Your own account appears offline, cannot send/receive messages, read new messages, invite new people or do anything until the PC is back on. Everyone else (people who joined from other homeservers) can keep chatting normally in your Space and rooms even for days or weeks while your PC is off (this is why you should keep registrations off, only your admin account registred in your homeserver and invite eveyone to join from other homeservers). If no one else from another homeserver has ever joined a particular room that room becomes unreachable until you come back online (you can make an alt account on other homserver and join every room of your Space).
+6) **What happens when the PC is off?** Your own account appears offline, cannot send/receive messages, read new messages, invite new people or do anything until the PC is back on. Everyone else who joined from other homeservers can keep chatting normally in your Space and rooms even for days or weeks while your PC is off. If no one else from another homeserver has ever joined a particular room that room becomes unreachable until you come back online.
 7) **What happens when the PC is back online?** Your account syncs up: you see all messages sent while you were offline. The process usually takes seconds to a few minutes, depending on how long you were offline and how active the rooms were.
 8) **How many resources will this use?**
    
@@ -36,6 +36,16 @@ This guide walks through setting up a secure, private Matrix Synapse homeserver 
 - Stable internet connection
 - Ability to run sudo commands
 - ~90–120 minutes of time for initial setup
+
+## Recommendations
+- Prefer [Commet](https://commet.chat/) (desktop & mobile) or [Cinny](https://cinny.in/) (desktop) to have a user friendly Discord-like UI.
+- Keep registrations off, only your admin account registred in your homeserver.
+- Make an alt account on other homserver and join every room of your Space.
+- Invite eveyone to join from other homeservers.
+- Don't give PL 50+ (mod) to anyone on another homeserver unless you 100% trust the owner of that homeserver.
+- To keep storage low use embeds instead of uploading raw media files (Ex. [catbox.moe](https://catbox.moe))
+- Keep max media upload size on 10Mb or lower.
+- Encourage users to also use embeds.
 
 ---
 
