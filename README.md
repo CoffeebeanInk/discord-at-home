@@ -407,7 +407,7 @@ In Tailscale admin → **DNS** → **Add DNS record**
 
 - Go to https://federationtester.matrix.org → enter `chat-yourname.dynu.net` → should pass.  
 - Join from a matrix.org account.  
-- Share the Space invite link on your website.
+- Share the Space invite link.
 
 ---
 
