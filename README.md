@@ -41,174 +41,374 @@ This guide walks through setting up a secure, private Matrix Synapse homeserver 
 
 --- WIP ---
 
-#### Step 1: Install Required Packages
-Update your system and install core dependencies:
+#### Phase 1: Create a Free Subdomain with Dynu (5 minutes)
+
+1. Go to https://www.dynu.com and sign up for a free account (email and password only, no card needed).  
+   **Why?** Dynu provides a reliable, clean subdomain without monthly confirmations or ads, making your server URL professional and easy to share (e.g., for invite links). This is better than a random Tailscale domain for usability.
+
+2. After login, click **Add** → **Hostname**.  
+   - Enter a hostname like `chat-yourname` or `matrix-private`.  
+   - Choose a free domain from the dropdown (e.g., `dynu.net`).  
+   - Full example: `chat-yourname.dynu.net`.  
+   - Click **Add** and save default settings.  
+   **Why?** This creates a stable address that we will CNAME to Tailscale for IP hiding. It's free forever and supports dynamic updates if needed.
+
+---
+
+#### Phase 2: Install and Configure Tailscale + Funnel (10 minutes)
+
+Tailscale creates a secure VPN mesh and exposes your server publicly without revealing your IP.
+
+1. Install Tailscale:  
+   ```bash
+   sudo pacman -S tailscale
+   sudo systemctl enable --now tailscaled
+   tailscale up
+   ```  
+   **Why?** Tailscale handles NAT traversal and IP hiding. The `up` command generates a login URL — open it in your browser and log in with GitHub/Google/Microsoft (free account). This connects your PC to your private tailnet (e.g., `yourname.ts.net`). It's fast and secure with WireGuard encryption.
+
+2. Enable Funnel:  
+   - Go to https://login.tailscale.com/admin/machines.  
+   - Find your PC → click the three dots → **Edit route settings**.  
+   - Turn **ON** Funnel and HTTPS.  
+   - Save.  
+   **Why?** Funnel allows public internet access to your local server on port 443 without port forwarding. HTTPS provides free certificates. This is the key to hiding your IP — traffic routes through Tailscale relays.
+
+3. Test Funnel:  
+   ```bash
+   tailscale funnel 443 http://127.0.0.1:8080
+   ```  
+   **Why?** This temporarily exposes a local port (we'll use 8080 for Caddy). You will see a public URL like `https://your-pc-name.your-tailnet.ts.net`. This confirms Tailscale is working. Keep it running for now.
+
+---
+
+#### Phase 3: Install Podman, AppArmor, and Caddy (5 minutes)
+
+1. Install packages:  
+   ```bash
+   sudo pacman -S podman podman-compose caddy apparmor
+   sudo systemctl enable --now podman.socket apparmor
+   ```  
+   **Why?** Podman is daemonless and rootless (more secure than Docker). AppArmor adds mandatory access control to confine containers. Caddy is a simple reverse proxy for HTTPS and .well-known delegation. The `podman.socket` enables rootless mode; AppArmor enforces policies that prevent container escapes.
+
+2. Log out and log back in (or reboot).  
+   **Why?** This applies group changes for rootless Podman, allowing containers to run as your user (safer).
+
+---
+
+#### Phase 4: Create Project Directories (2 minutes)
+
+```bash
+mkdir -p ~/.config/containers/systemd
+mkdir -p ~/matrix-synapse/data/postgres
+mkdir -p /etc/caddy/wellknown/matrix
+sudo chown -R $USER:$USER /etc/caddy
 ```
-sudo pacman -Syu
-sudo pacman -S podman postgresql matrix-synapse caddy apparmor tailscale python python-pip git cronie
-```
-- `matrix-synapse`: Arch's Synapse package (we'll use it for config generation but run in Podman).
-- Initialize PostgreSQL: `sudo -u postgres initdb -D /var/lib/postgres/data`, then start and enable: `sudo systemctl enable --now postgresql`.
-- Create a Synapse database: `sudo -u postgres psql -c "CREATE USER synapse; CREATE DATABASE synapse OWNER synapse ENCODING UTF8 LC_COLLATE 'C' LC_CTYPE 'C' TEMPLATE template0;"`.
 
-For Python dependencies (for bots and scripts): `pip install matrix-synapse matrix-bot-sdk requests`.
+**Why?** These directories hold Quadlet files (for systemd), data volumes, and Caddy configs. The chown ensures Caddy runs as your user for rootless compatibility.
 
-#### Step 2: Set Up Dynu for Dynamic DNS
-Dynu provides free dynamic DNS to map your changing home IP to a domain.
+---
 
-1. Sign up at dynu.com and create a hostname (e.g., matrix.example.com).
-2. Install a dynamic DNS client: Use `ddclient` (available via AUR: `yay -S ddclient` if using an AUR helper).
-3. Configure `/etc/ddclient.conf`:
+#### Phase 5: Create Podman Secret for the Database Password (Secure Storage – 5 minutes)
+
+1. Generate a strong random password:  
+   ```bash
+   pwgen -s 40 1
+   ```  
+   **Why?** This creates a secure 40-character random string (e.g., `K7p!vX9mQz$2rT8wL5nYfJ3hB6cA4eD0g...`). Copy it. It's crucial for the Postgres DB; make it unique and long to protect against brute-force if someone gets access.
+
+2. Create the Podman secret:  
+   ```bash
+   echo -n "K7p!vX9mQz$2rT8wL5nYfJ3hB6cA4eD0g..." | podman secret create pg_password -
+   ```  
+   **Why?** Podman secrets store the password encrypted (not plain text in files). This protects it from local exploits (e.g., malware reading your home directory). Even if someone reads your configs, they can't see the password.
+
+---
+
+#### Phase 6: Create Quadlet Files (Systemd-Native Containers – 5 minutes)
+
+Quadlet turns containers into native systemd services — auto-start, restart, logging.
+
+1. Postgres Quadlet:  
+   ```bash
+   nano ~/.config/containers/systemd/matrix-postgres.container
+   ```  
+
+   ```ini
+   [Unit]
+   Description=Matrix PostgreSQL Database
+   After=network-online.target
+
+   [Container]
+   ContainerName=matrix-postgres
+   Image=postgres:16-alpine
+   Volume=%h/matrix-synapse/data/postgres:/var/lib/postgresql/data
+   Secret=pg_password,target=/run/secrets/pg_password,mode=0400
+   Environment=POSTGRES_USER=synapse
+   Environment=POSTGRES_DB=synapse
+   Environment=POSTGRES_PASSWORD_FILE=/run/secrets/pg_password
+   Network=host
+
+   [Service]
+   Restart=always
+
+   [Install]
+   WantedBy=default.target
    ```
-   protocol=dyndns2
-   use=web, web=checkip.dynu.com/
-   server=api.dynu.com
-   login=your-dynu-username
-   password=your-dynu-api-key
-   matrix.example.com
+
+2. Synapse Quadlet:  
+   ```bash
+   nano ~/.config/containers/systemd/matrix-synapse.container
+   ```  
+
+   ```ini
+   [Unit]
+   Description=Matrix Synapse Homeserver
+   After=matrix-postgres.service
+   Requires=matrix-postgres.service
+
+   [Container]
+   ContainerName=matrix-synapse
+   Image=matrixdotorg/synapse:latest
+   Volume=%h/matrix-synapse/data:/data
+   Environment=SYNAPSE_CONFIG_PATH=/data/homeserver.yaml
+   Network=host
+
+   [Service]
+   Restart=always
+
+   [Install]
+   WantedBy=default.target
    ```
-4. Start and enable: `sudo systemctl enable --now ddclient`.
-5. Verify: Check dynu.com dashboard for IP updates every 5-10 minutes.
 
-(If ddclient fails, use Dynu's official Linux client script from their support guides.)
+**Why Quadlet?** It's the cleanest, most secure way to run containers as system services — rootless, declarative, auto-restarts, integrates with systemd for logging/resource limits. Seccomp is built-in (filters dangerous calls); AppArmor (enabled in Phase 3) confines the containers further.
 
-#### Step 3: Set Up Tailscale and Funnel for Secure Exposure
-Tailscale creates a secure VPN mesh; Funnel exposes your local service publicly without port forwarding.
+---
 
-1. Install Tailscale: Already done in Step 1.
-2. Start and authenticate: `sudo tailscale up --authkey=your-tailscale-auth-key` (get from tailscale.com/admin).
-3. Enable MagicDNS and HTTPS in your Tailscale admin console.
-4. Enable Funnel: `tailscale funnel --bg` (approves via web; adds "funnel" attribute to your tailnet policy).
-5. Expose your future Caddy port (e.g., 443): `tailscale funnel 443` (this creates a public URL like https://your-device.ts.net).
-6. Test: Run a temporary server (e.g., `python -m http.server 443`) and access via the Funnel URL.
+#### Phase 7: Generate Synapse Config (5 minutes)
 
-Funnel handles TLS; traffic proxies securely through Tailscale relays.
+1. Reload systemd:  
+   ```bash
+   systemctl --user daemon-reload
+   ```  
+   **Why?** This loads the Quadlet files so Podman can create the services.
 
-#### Step 4: Install and Configure Podman
-Podman runs containers rootlessly.
+2. Start Postgres:  
+   ```bash
+   systemctl --user start matrix-postgres
+   ```  
+   **Why?** Postgres must be running to generate Synapse config.
 
-1. Enable user namespaces (for rootless): Edit `/etc/subuid` and `/etc/subgid` to add your user (e.g., `youruser:100000:65536`).
-2. Test Podman: `podman run hello-world`.
-3. Install podman-compose if needed: `pip install podman-compose` (for easier multi-container setups).
+3. Generate config:  
+   ```bash
+   podman run --rm -v ~/matrix-synapse/data:/data \
+     -e SYNAPSE_SERVER_NAME=chat-yourname.dynu.net \
+     -e SYNAPSE_REPORT_STATS=no \
+     matrixdotorg/synapse:latest generate
+   ```  
+   **Why?** This creates the initial `homeserver.yaml` with your domain.
 
-#### Step 5: Configure AppArmor for Podman
-AppArmor confines applications for security.
+4. Edit the config:  
+   ```bash
+   nano ~/matrix-synapse/data/homeserver.yaml
+   ```  
 
-1. Enable AppArmor: `sudo systemctl enable --now apparmor`.
-2. For Podman DNS issues (if using bridge networks): Edit `/etc/apparmor.d/local/usr.sbin.dnsmasq`:
+   Replace these sections:
+
+   ```yaml
+   server_name: "chat-yourname.dynu.net"
+   public_baseurl: "https://chat-yourname.dynu.net"
+
+   listeners:
+     - port: 8008
+       tls: false
+       type: http
+       x_forwarded: true
+       bind_addresses: ['127.0.0.1']
+       resources:
+         - names: [client, federation]
+
+   retention:
+     enabled: true
+     default_policy:
+       max_lifetime: 1209600000   # 14 days
+
+   media_retention:
+     local_media_lifetime: 14d
+     remote_media_lifetime: 14d
+
+   max_upload_size: 10M
+
+   database:
+     name: psycopg2
+     args:
+       user: synapse
+       password_file: /run/secrets/pg_password
+       database: synapse
+       host: localhost
    ```
-   owner /run/user/[0-9]*/containers/cni/dnsname/*/dnsmasq.conf r,
-   owner /run/user/[0-9]*/containers/cni/dnsname/*/addnhosts r,
-   ```
-3. Reload: `sudo apparmor_parser -R /etc/apparmor.d/usr.sbin.dnsmasq && sudo apparmor_parser /etc/apparmor.d/usr.sbin.dnsmasq`.
-4. Apply to Podman: Use `--security-opt apparmor=unconfined` if profiles conflict, but test confined first.
 
-#### Step 6: Install and Configure Caddy as Reverse Proxy
-Caddy handles HTTPS and proxies to Synapse.
+**Why?** This sets your domain, enables purge, and uses the secret password file for security.
 
-1. Create `/etc/caddy/Caddyfile`:
-   ```
-   matrix.example.com {
+---
+
+#### Phase 8: Caddy Configuration (Tailscale Port Workaround – 5 minutes)
+
+1. Create Caddyfile:  
+   ```bash
+   nano /etc/caddy/Caddyfile
+   ```  
+
+   ```caddy
+   chat-yourname.dynu.net {
        reverse_proxy localhost:8008
    }
-   ```
-   (Adjust port if Synapse uses different; enables auto-HTTPS via Let's Encrypt, but use Tailscale Funnel for home setups to avoid port 80/443 exposure.)
-2. Start and enable: `sudo systemctl enable --now caddy`.
-3. Test: `curl https://matrix.example.com` (should proxy if Synapse is running).
 
-Integrate with Tailscale: Funnel the Caddy port for external access.
+   chat-yourname.dynu.net/.well-known/matrix/* {
+       root * /etc/caddy/wellknown
+       file_server
+   }
+   ```  
 
-#### Step 7: Set Up Synapse in Podman
-Use Podman's Docker compatibility for Synapse's official image.
+2. Create the well-known files:  
+   ```bash
+   nano /etc/caddy/wellknown/matrix/client
+   ```  
 
-1. Generate config: `synapse_homeserver --generate-config --server-name matrix.example.com --data-dir /var/lib/synapse --report-stats=no`.
-2. Edit `/var/lib/synapse/homeserver.yaml`:
-   - Set `database` to PostgreSQL: `database: name: psycopg2, args: {user: synapse, password: yourpass, dbname: synapse, host: localhost}`.
-   - Enable federation if needed: `federation_domain_whitelist: null`.
-   - Set listeners: `listeners: - port: 8008, bind_addresses: ['::', '0.0.0.0'], type: http, tls: false, resources: - names: [client, federation]`.
-3. Run in Podman: `podman run -d --name synapse -v /var/lib/synapse:/data -p 8008:8008 docker.io/matrixdotorg/synapse:latest`.
-4. Register admin user: `podman exec -it synapse register_new_matrix_user -c /data/homeserver.yaml http://localhost:8008`.
-5. Start: `podman start synapse`.
+   ```json
+   {
+     "m.homeserver": { "base_url": "https://chat-yourname.dynu.net" }
+   }
+   ```  
 
-Proxy through Caddy and expose via Tailscale Funnel.
+   ```bash
+   nano /etc/caddy/wellknown/matrix/server
+   ```  
 
-#### Step 8: Configure 14-Day Chat History Retention
-Edit `homeserver.yaml`:
+   ```json
+   {
+     "m.server": "chat-yourname.dynu.net:443"
+   }
+   ```  
+
+3. Restart Caddy:  
+   ```bash
+   sudo systemctl restart caddy
+   ```  
+
+**Why Caddy?** Tailscale Funnel only supports 443 → Caddy proxies it to Synapse on 8008 and serves .well-known files for federation discovery. This is the key workaround for port limits.
+
+---
+
+#### Phase 9: Enable & Start Everything
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now matrix-postgres matrix-synapse
+sudo systemctl restart caddy
 ```
-retention:
-  enabled: true
-  default_policy:
-    max_lifetime: 14d
-  allowed_lifetime_max: 14d
-  purge_jobs:
-    - longest_max_lifetime: 14d
-      interval: 12h
+
+**Why?** This starts the services and enables auto-start on login/boot.
+
+---
+
+#### Phase 10: Create Admin Account (2 minutes)
+
+```bash
+podman exec -it matrix-synapse register_new_matrix_user http://localhost:8008 -c /data/homeserver.yaml -a @yourusername:chat-yourname.dynu.net
 ```
-Restart Synapse: `podman restart synapse`.
 
-For rooms, admins can set via client: Send `m.room.retention` event with `{"max_lifetime": 1209600000}`.
+**Why?** This creates your single local admin account with the -a flag for admin privileges.
 
-#### Step 9: Set Up Monthly Cleanup Script
-Use a script to purge old data monthly.
+---
 
-1. Clone: `git clone https://github.com/ivansostarko/matrix-synapse-purge-script`.
-2. Edit `purge_synapse.sh` for your setup (e.g., retention days=30 for monthly).
-3. Make executable: `chmod +x purge_synapse.sh`.
-4. Add to crontab (monthly on 1st): `crontab -e` then `0 0 1 * * /path/to/purge_synapse.sh`.
-5. It purges events/media >30 days and vacuums PostgreSQL.
+#### Phase 11: Tailscale Funnel as Systemd Service (2 minutes)
 
-For manual purges: Use Synapse admin API (e.g., `POST /_synapse/admin/v1/purge_history/room_id`).
+```bash
+sudo tee /etc/systemd/system/tailscale-funnel.service <<EOF
+[Unit]
+Description=Tailscale Funnel for Matrix
+After=network.target tailscaled.service
 
-#### Step 10: Set Up Bot to Kick Inactive Users After 30 Days
-Create a simple Python bot using matrix-bot-sdk.
+[Service]
+ExecStart=/usr/bin/tailscale funnel 443 http://127.0.0.1:8080
+Restart=always
+User=$USER
 
-1. Create `kick_bot.py`:
-   ```python
-   import asyncio
-   from nio import AsyncClient, RoomMessageText
+[Install]
+WantedBy=multi-user.target
+EOF
 
-   HOMESERVER = "https://matrix.example.com"
-   USER = "@bot:matrix.example.com"
-   PASS = "botpassword"
-   ROOM_ID = "!yourroomid:matrix.example.com"  # Replace
+sudo systemctl daemon-reload
+sudo systemctl enable --now tailscale-funnel
+```
 
-   async def main():
-       client = AsyncClient(HOMESERVER, USER)
-       await client.login(PASS)
-       last_active = {}  # Track user activity
+**Why?** This makes Funnel start automatically and restart if it crashes.
 
-       async def message_cb(room, event):
-           if room.room_id == ROOM_ID and isinstance(event, RoomMessageText):
-               last_active[event.sender] = event.server_timestamp
+---
 
-       client.add_event_callback(message_cb, RoomMessageText)
+#### Phase 12: Monthly Cleanup Script (5 minutes)
 
-       # Periodic check (every hour)
-       while True:
-           await asyncio.sleep(3600)
-           now = int(time.time() * 1000)
-           for user in last_active:
-               if now - last_active.get(user, 0) > 2592000000:  # 30 days ms
-                   await client.room_kick(ROOM_ID, user, reason="Inactive for 30 days")
+```bash
+nano ~/matrix-synapse/purge.sh
+```
 
-       await client.sync_forever(timeout=30000)
+```bash
+#!/bin/bash
+BEFORE=$(date -d '60 days ago' +%s000)
 
-   asyncio.run(main())
-   ```
-   (Install `nio`: `pip install matrix-nio`.)
-2. Register bot user via Synapse admin.
-3. Run: `python kick_bot.py` (or as systemd service).
-4. Invite bot to room and give mod powers.
+curl -X POST "http://localhost:8008/_synapse/admin/v1/purge_media_cache?before_ts=$BEFORE" \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN_HERE"
 
-(Adapt for multi-room; this is basic—enhance with logging.)
+find ~/matrix-synapse/data/media_store -type d -empty -delete
+```
 
-#### Step 11: Install and Use Commet as Matrix Client
-Commet is an open-source desktop Matrix client with E2EE, calls, and multi-account support.
+**Why?** This purges old media cache (beyond the 14-day automatic) and cleans empty directories. Replace `YOUR_ADMIN_TOKEN_HERE` with your real token (get from client devtools: F12 → Network → any request → copy Authorization header).
 
-1. Download from GitHub: `git clone https://github.com/commetchat/commet`.
-2. Build/install: Follow repo instructions (e.g., Flutter-based: `flutter pub get && flutter run`).
-3. Or use Flatpak if available: `flatpak install commet`.
-4. Launch, log in with your Synapse account (@user:matrix.example.com).
-5. Features: Use for chatting, calls, emoji uploads.
+```bash
+chmod +x ~/matrix-synapse/purge.sh
+crontab -e
+```
 
-Test the setup: Create a room in Commet, invite users, and verify retention/cleanup/bot over time. Monitor logs (`podman logs synapse`) and secure with firewalls (e.g., ufw allow Tailscale). If issues, check Synapse docs or Arch Wiki.
+Add:
+
+```bash
+0 4 1 * * ~/matrix-synapse/purge.sh >> ~/matrix-purge.log 2>&1
+```
+
+**Why?** Runs monthly at 4:00 AM — keeps storage clean automatically.
+
+---
+
+#### Phase 13: Create Your Space & Rooms (5 minutes)
+
+Log in at `https://chat-yourname.dynu.net` (using Commet or Cinny).
+
+1. Create a **Space** → **Private (Invite Only)**  
+2. Add rooms:
+   - Main Chat → Join rule = **Space members**
+
+**Why?** This creates a tiered, private community with restricted access.
+
+---
+
+#### Phase 14: Dynu CNAME to Tailscale (2 minutes)
+
+In Tailscale admin → **DNS** → **Add DNS record**  
+- Type: **CNAME**
+- Name: `chat-yourname`
+- Target: `your-pc-name.your-tailnet.ts.net`
+
+**Why?** This aliases the Dynu domain to Tailscale, giving you a clean URL while hiding your IP.
+
+---
+
+#### Phase 15: Final Test
+
+- Go to https://federationtester.matrix.org → enter `chat-yourname.dynu.net` → should pass.  
+- Join from a matrix.org account.  
+- Share the Space invite link on your website.
+
+---
+
+You now have a secure, private, self-hosted Matrix server.
