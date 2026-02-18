@@ -8,7 +8,7 @@ This guide walks through setting up a secure, private Matrix Synapse homeserver 
 5) **Why a personal comuter insted of a VPS?** It's free, uses your existing hardware, and is resilient through federation.
 6) **What happens when the PC is off?** Your own account appears offline, cannot send/receive messages, read new messages, invite new people or do anything until the PC is back on. Everyone else who joined from other homeservers can keep chatting normally in your Space and rooms even for days or weeks while your PC is off. If no one else from another homeserver has ever joined a particular room that room becomes unreachable until you come back online.
 7) **What happens when the PC is back online?** Your account syncs up: you see all messages sent while you were offline. The process usually takes seconds to a few minutes, depending on how long you were offline and how active the rooms were.
-8) **How many people can I have in my spcae?** 200–600 total federated users (50–150 concurrent).
+8) **How many people can I have in my Space?** 200–600 total federated users (50–150 concurrent).
 9) **What happens if my Space goes beyond the recomended users?** You will start to experience occasional catch-up spikes, longer syncs and more RAM used, but your server wont crash or lose data.
 10) **How many resources will this use?**
    
