@@ -371,14 +371,159 @@ crontab -e
 Add:
 
 ```bash
-0 4 1 * * ~/matrix-synapse/purge.sh >> ~/matrix-purge.log 2>&1
+0 12 1 * * ~/matrix-synapse/purge.sh >> ~/matrix-purge.log 2>&1
 ```
 
-**Why?** Runs monthly at 4:00 AM — keeps storage clean automatically.
+**Why?** Runs monthly at 12:00 PM — keeps storage clean automatically.
 
 ---
 
-#### Phase 13: Create Your Space & Rooms (5 minutes)
+#### Phase 13: Matrix Inactive Member Kicker Bot (15 minutes)
+
+```python
+#!/usr/bin/env python3
+"""
+Matrix Room Inactive Member Kicker Bot
+Kicks users inactive for more than 30 days from a room/Space.
+Works for users from ANY homeserver.
+"""
+
+import asyncio
+import time
+from datetime import datetime, timedelta
+from nio import AsyncClient, LoginResponse, RoomMember
+
+# ────────────────────────────────────────────────
+#  CONFIG – CHANGE THESE VALUES
+# ────────────────────────────────────────────────
+
+HOMESERVER      = "https://chat-yourname.dynu.net"      # Your homeserver URL
+BOT_USER        = "@bot-inactive-kicker:chat-yourname.dynu.net"  # Bot's MXID
+BOT_PASSWORD    = "your-bot-password-here"               # Bot's password
+ROOM_ID         = "!xxxxxxxxxxxxxxxxxxxxxxxx:chat-yourname.dynu.net"  # Room or Space ID (get from client settings)
+INACTIVE_DAYS   = 30
+DRY_RUN         = True                                   # Set to False to actually kick
+
+# ────────────────────────────────────────────────
+
+async def main():
+    client = AsyncClient(HOMESERVER, BOT_USER)
+
+    # Login
+    resp = await client.login(password=BOT_PASSWORD)
+    if not isinstance(resp, LoginResponse):
+        print("Login failed:", resp)
+        return
+
+    print(f"Logged in as {BOT_USER}")
+
+    # Get current room members
+    members_resp = await client.room_members(ROOM_ID)
+    if not members_resp:
+        print("Failed to get room members")
+        return
+
+    now = int(time.time() * 1000)  # milliseconds
+    cutoff_ts = now - (INACTIVE_DAYS * 24 * 60 * 60 * 1000)
+
+    kicked = 0
+    for member in members_resp.members:
+        mxid = member.user_id
+        if mxid == BOT_USER:
+            continue  # don't kick self
+
+        # Get member's last active timestamp
+        last_active_ms = member.last_active_ago or 0
+        last_seen_ts = now - last_active_ms if last_active_ms else 0
+
+        if last_seen_ts < cutoff_ts:
+            reason = f"Inactive for more than {INACTIVE_DAYS} days (last seen {datetime.fromtimestamp(last_seen_ts/1000)})"
+            print(f"Would kick {mxid} – {reason}")
+
+            if not DRY_RUN:
+                kick_resp = await client.room_kick(ROOM_ID, mxid, reason)
+                if kick_resp.is_success():
+                    print(f"Kicked {mxid}")
+                    kicked += 1
+                else:
+                    print(f"Failed to kick {mxid}: {kick_resp}")
+            else:
+                kicked += 1  # count for dry-run
+
+    print(f"\nTotal inactive users found: {kicked}")
+    if DRY_RUN:
+        print("Dry run – no kicks performed. Set DRY_RUN = False to actually kick.")
+
+    await client.close()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+1. Install Dependencies
+   Open your terminal and run:  
+   ```bash
+   pip install --user matrix-nio aiohttp
+   ```  
+   This installs the Python libraries needed for the bot to connect to Matrix.
+
+2. Create the Bot Account
+   In your terminal, run:  
+   ```bash
+   podman exec -it matrix-synapse register_new_matrix_user http://localhost:8008 -c /data/homeserver.yaml @bot-inactive-kicker:chat-yourname.dynu.net
+   ```  
+   Follow the prompts to set a strong password. Note it down.
+
+3. Give the Bot Power in the Room 
+   - Log into your Matrix client (Commet or Cinny) with your admin account.  
+   - Go to the room or Space you want to monitor.  
+   - Click the room name → Settings → Roles & Permissions.  
+   - Invite `@bot-inactive-kicker:chat-yourname.dynu.net`.  
+   - Set its power level to **50** (moderator level).  
+   - Save.
+
+4. Save the Script
+   In terminal:  
+   ```bash
+   nano ~/matrix-synapse/kick-inactive-bot.py
+   ```  
+   Paste the script above. Replace the CONFIG section with your values:  
+   - HOMESERVER = your server's URL  
+   - BOT_USER = the bot's MXID  
+   - BOT_PASSWORD = the bot's password  
+   - ROOM_ID = the room's ID (get from client: Room settings → Advanced → Room ID)  
+   - Set DRY_RUN = True for testing.  
+   Save (Ctrl+O → Enter → Ctrl+X).
+
+5. Make it Executable
+   ```bash
+   chmod +x ~/matrix-synapse/kick-inactive-bot.py
+   ```
+
+6. Test the Bot Manually
+   ```bash
+   python3 ~/matrix-synapse/kick-inactive-bot.py
+   ```  
+   - It should log in and print "Would kick [user]..." for inactive users (no actual kicks in dry run).  
+   - If it works, set DRY_RUN = False to enable real kicks.
+
+7. Run It Automatically Every Month
+   - Run:  
+     ```bash
+     crontab -e
+     ```  
+   - Add this line at the end:  
+     ```bash
+     0 12 1 * * python3 ~/matrix-synapse/kick-inactive-bot.py >> ~/kick-log.txt 2>&1
+     ```  
+     - Save and exit.  
+   - This runs the bot monthly at 12:00 PM. Logs go to kick-log.txt in your home folder.
+
+**Why?** This bot automatically kicks users from a room who have been inactive for 30 days or more. It works for users from any homeserver (local or federated). The bot needs to be a member of the room with power level 50 or higher (to have kick permission).
+
+---
+
+#### Phase 14: Create Your Space & Rooms (5 minutes)
 
 Log in at `https://chat-yourname.dynu.net` (using Commet or Cinny).
 
@@ -390,7 +535,7 @@ Log in at `https://chat-yourname.dynu.net` (using Commet or Cinny).
 
 ---
 
-#### Phase 14: Dynu CNAME to Tailscale (2 minutes)
+#### Phase 15: Dynu CNAME to Tailscale (2 minutes)
 
 In Tailscale admin → **DNS** → **Add DNS record**  
 - Type: **CNAME**
@@ -401,7 +546,7 @@ In Tailscale admin → **DNS** → **Add DNS record**
 
 ---
 
-#### Phase 15: Final Test
+#### Phase 16: Final Test
 
 - Go to https://federationtester.matrix.org → enter `chat-yourname.dynu.net` → should pass.  
 - Join from a matrix.org account.  
