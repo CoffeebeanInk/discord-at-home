@@ -75,14 +75,14 @@ Tailscale creates a secure VPN mesh and exposes your server publicly without rev
    sudo systemctl enable --now tailscaled
    tailscale up
    ```  
-   **Why?** Tailscale handles NAT traversal and IP hiding. The `up` command generates a login URL — open it in your browser and log in with GitHub/Google/Microsoft (free account). This connects your PC to your private tailnet (e.g., `yourname.ts.net`). It's fast and secure with WireGuard encryption.
+   **Why?** Tailscale handles NAT traversal and IP hiding. The `up` command generates a login URL - open it in your browser and log in with GitHub/Google/Microsoft (free account). This connects your PC to your private tailnet (e.g., `yourname.ts.net`). It's fast and secure with WireGuard encryption.
 
 2. Enable Funnel:  
    - Go to https://login.tailscale.com/admin/machines.  
    - Find your PC → click the three dots → **Edit route settings**.  
    - Turn **ON** Funnel and HTTPS.  
    - Save.  
-   **Why?** Funnel allows public internet access to your local server on port 443 without port forwarding. HTTPS provides free certificates. This is the key to hiding your IP — traffic routes through Tailscale relays.
+   **Why?** Funnel allows public internet access to your local server on port 443 without port forwarding. HTTPS provides free certificates. This is the key to hiding your IP - traffic routes through Tailscale relays.
 
 3. Test Funnel:  
    ```bash
@@ -137,7 +137,7 @@ sudo chown -R $USER:$USER /etc/caddy
 
 #### Phase 6: Create Quadlet Files (Systemd-Native Containers – 5 minutes)
 
-Quadlet turns containers into native systemd services — auto-start, restart, logging.
+Quadlet turns containers into native systemd services - auto-start, restart, logging.
 
 1. Postgres Quadlet:  
    ```bash
@@ -191,7 +191,7 @@ Quadlet turns containers into native systemd services — auto-start, restart, l
    WantedBy=default.target
    ```
 
-**Why Quadlet?** It's the cleanest, most secure way to run containers as system services — rootless, declarative, auto-restarts, integrates with systemd for logging/resource limits. Seccomp is built-in (filters dangerous calls); AppArmor (enabled in Phase 3) confines the containers further.
+**Why Quadlet?** It's the cleanest, most secure way to run containers as system services - rootless, declarative, auto-restarts, integrates with systemd for logging/resource limits. Seccomp is built-in (filters dangerous calls); AppArmor (enabled in Phase 3) confines the containers further.
 
 ---
 
@@ -386,7 +386,7 @@ Add:
 0 12 1 * * ~/matrix-synapse/purge.sh >> ~/matrix-purge.log 2>&1
 ```
 
-**Why?** Runs monthly at 12:00 PM — keeps storage clean automatically.
+**Why?** Runs monthly at 12:00 PM - keeps storage clean automatically.
 
 ---
 
