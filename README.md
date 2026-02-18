@@ -1,4 +1,4 @@
-# Self hosting Matrix Synapse on a personal computer
+# Self hosting Matrix Synapse on a user PC
 This guide walks through setting up a secure, private Matrix Synapse homeserver on a personal Linux PC. The focus is on a low-resource, privacy-focused configuration with closed registration, a private invite-only Space, external content embedding to minimize storage, automatic 14-day purge for chat and media, and a monthly cleanup script. We use Tailscale Funnel to hide your real IP without port forwarding, a free subdomain from Dynu for a clean URL, rootless Podman with Quadlet for secure container management, Caddy for proxying, and AppArmor for additional security.
 
 ## FAQ
