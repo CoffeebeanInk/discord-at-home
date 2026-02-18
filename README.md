@@ -8,8 +8,18 @@ This guide walks through setting up a secure, private Matrix Synapse homeserver 
 5) **Why a personal comuter insted of a VPS?** It's free, uses your existing hardware, and is resilient through federation.
 6) **What happens when the PC is off?** Your own account appears offline, cannot send/receive messages, read new messages, invite new people or do anything until the PC is back on. Everyone else (people who joined from other homeservers) can keep chatting normally in your Space and rooms even for days or weeks while your PC is off. If no one else from another homeserver has ever joined a particular room that room becomes unreachable until you come back online.
 7) **What happens when the PC is back online?** Your account syncs up: you see all messages sent while you were offline. The process usually takes seconds to a few minutes, depending on how long you were offline and how active the rooms were.
-8) **You did X wrong!** I'm not an expert, open an issue describing the problem and the solution in detail and I'll be happpy to fix it.
-9) **It didn't work for me!** Follow each step carefully, I can't guaranty it will work on every machine.
+8) **How many resources will this use?**
+   
+| Scenario                              | RAM              | CPU              | Disk (long-term) | Network          | Power (extra) | Impact on Your PC                  |
+|---------------------------------------|------------------|------------------|------------------|------------------|---------------|------------------------------------|
+| **Idle / no one chatting**            | 0.6–1.2 GB       | <5%              | 3–8 GB           | <50 KB/s         | 5–10 W        | Unnoticeable                       |
+| **Normal chat (10–50 people active)** | 1–2 GB           | 10–40%           | 4–9 GB           | 100 KB–1 MB/s    | 10–20 W       | Barely noticeable                  |
+| **After week offline + catch-up**     | 1.5–3.5 GB       | 40–90% (short)   | +0.1–1 GB temp   | 1–5 MB/s         | 20–40 W       | Short CPU spike, fans may spin     |
+| **Gaming + streaming at same time**   | +0.5 GB          | +5–10%           | No change        | No change        | +5–15 W       | Negligible (GPU encoding offloads) |
+
+
+10) **You did X wrong!** I'm not an expert, open an issue describing the problem and the solution in detail and I'll be happpy to fix it.
+11) **It didn't work for me!** Follow each step carefully, I can't guaranty it will work on every machine.
 
 ## What to expect
 - Self-hosted Matrix Synapse server on your personal computer
